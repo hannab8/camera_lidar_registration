@@ -1,76 +1,74 @@
 import numpy as np
 from scipy.optimize import least_squares
 import matplotlib.pyplot as plt
-
-
-'''
-Apply a 2D transformation to the points in x.
-
-Parameters:
-params: List of transformation parameters [theta, tx, ty, sx, sy]
-x: 2D array of points to be transformed
-
-Returns:
-transformed_x: 2D array of transformed points
-'''
+from mpl_toolkits.mplot3d import Axes3D
 
 def transform(params, x):
-
-    theta, tx, ty, sx, sy = params
-    T = np.array([
-        [sx * np.cos(theta), -sy * np.sin(theta), tx],
-        [sx * np.sin(theta), sy * np.cos(theta), ty],
-        [0, 0, 1]
+    theta_x, theta_y, theta_z, tx, ty, tz, sx, sy, sz = params
+    Rx = np.array([
+        [1, 0, 0, 0],
+        [0, np.cos(theta_x), -np.sin(theta_x), 0],
+        [0, np.sin(theta_x), np.cos(theta_x), 0],
+        [0, 0, 0, 1]
     ])
+    Ry = np.array([
+        [np.cos(theta_y), 0, np.sin(theta_y), 0],
+        [0, 1, 0, 0],
+        [-np.sin(theta_y), 0, np.cos(theta_y), 0],
+        [0, 0, 0, 1]
+    ])
+    Rz = np.array([
+        [np.cos(theta_z), -np.sin(theta_z), 0, 0],
+        [np.sin(theta_z), np.cos(theta_z), 0, 0],
+        [0, 0, 1, 0],
+        [0, 0, 0, 1]
+    ])
+    T = np.array([
+        [1, 0, 0, tx],
+        [0, 1, 0, ty],
+        [0, 0, 1, tz],
+        [0, 0, 0, 1]
+    ])
+    S = np.diag([sx, sy, sz, 1])
+    M = np.dot(np.dot(np.dot(T, Rz), Ry), Rx)
+    M = np.dot(M, S)
     x_homogeneous = np.column_stack([x, np.ones(x.shape[0])])
-    transformed_x_homogeneous = np.dot(x_homogeneous, T.T)
-    return transformed_x_homogeneous[:, :2]
+    transformed_x_homogeneous = np.dot(x_homogeneous, M.T)
+    return transformed_x_homogeneous[:, :3]
 
-
-'''
-Compute the error between transformed x and y.
-
-Parameters:
-params: Transformation parameters
-x: Original points
-y: Target points to align with
-
-Returns:
-Error as the L2 norm between transformed x and y
-'''
 def error(params, x, y):
     transformed_x = transform(params, x)
     return np.linalg.norm(transformed_x - y, axis=1)
 
-# Testing points for camera and LiDAR
-x = np.array([[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], [11, 12]])
-y = np.array([[0.1, 0.2], [0.3, 0.4], [0.5, 0.6], [0.7, 0.8], [0.9, 1.0], [1.1, 1.2]])
+# Example points for camera and LiDAR (3D)
+x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12], [13, 14, 15], [16, 17, 18], [19, 20, 21], [22, 23, 24], [25, 26, 27]])
+y = np.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9], [1.0, 1.1, 1.2], [1.3, 1.4, 1.5], [1.6, 1.7, 1.8], [1.9, 2.0, 2.1], [2.2, 2.3, 2.4], [2.5, 2.6, 2.7]])
 
 # Initial guess for the transformation parameters
-initial_params = [0, 0, 0, 1, 1]
+initial_params = [0, 0, 0, 0, 0, 0, 1, 1, 1]
 
-# Perform optimization to find the best transformation parameters
+# Optimization
 result = least_squares(error, initial_params, args=(x, y), method='lm')
 optimized_params = result.x
 transformed_x = transform(optimized_params, x)
 
+# Error calculation
 difference = y - transformed_x
 mse = np.mean(np.sum(difference**2, axis=1))
 rmse = np.sqrt(mse)
 
-
-'''
-BELOW is for visual purposes only.
-'''
-
-print("Optimized Parameters (theta, tx, ty, sx, sy):", optimized_params)
+# Results
+print("Optimized Parameters:", optimized_params)
 print("Root Mean Squared Error (RMSE):", rmse)
 
-plt.scatter(y[:, 0], y[:, 1], label='Lidar Points', c='blue', marker='o')
-plt.scatter(transformed_x[:, 0], transformed_x[:, 1], label='Transformed Camera Points', c='red', marker='x')
-plt.legend()
-plt.xlabel('X-axis')
-plt.ylabel('Y-axis')
-plt.title('Alignment between Lidar and Transformed Camera Points')
-plt.grid(True)
+# 3D Plotting
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(y[:, 0], y[:, 1], y[:, 2], label='Lidar Points', c='blue', marker='o')
+ax.scatter(transformed_x[:, 0], transformed_x[:, 1], transformed_x[:, 2], label='Transformed Camera Points', c='red', marker='x')
+ax.legend()
+ax.set_xlabel('X-axis')
+ax.set_ylabel('Y-axis')
+ax.set_zlabel('Z-axis')
+plt.title('Alignment between Lidar and Transformed Camera Points in 3D')
 plt.show()
